@@ -1,0 +1,95 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voxco Server Monitoring Dashboard</title>
+  
+  <!-- React 18 Dependencies -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0ea5e9',
+            secondary: '#0f172a',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: '#1e293b',
+            light: '#f8fafc',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    /* Additional global styles */
+    .bg-success { background-color: #10b981; }
+    .bg-warning { background-color: #f59e0b; }
+    .bg-danger { background-color: #ef4444; }
+    .bg-primary { background-color: #0ea5e9; }
+    
+    .text-success { color: #10b981; }
+    .text-warning { color: #f59e0b; }
+    .text-danger { color: #ef4444; }
+    .text-primary { color: #0ea5e9; }
+    
+    .border-success { border-color: #10b981; }
+    .border-warning { border-color: #f59e0b; }
+    .border-danger { border-color: #ef4444; }
+    .border-primary { border-color: #0ea5e9; }
+    
+    .bg-success-light { background-color: rgba(16, 185, 129, 0.2); }
+    .bg-warning-light { background-color: rgba(245, 158, 11, 0.2); }
+    .bg-danger-light { background-color: rgba(239, 68, 68, 0.2); }
+    .bg-primary-light { background-color: rgba(14, 165, 233, 0.2); }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+  <div id="root"></div>
+  
+  <!-- Load server data first -->
+  <script type="text/babel" src="data/servers.js"></script>
+  
+  <!-- Load API integration -->
+  <script type="text/babel" src="data/api.js"></script>
+  
+  <!-- Load components after data -->
+  <script type="text/babel" src="components/ServiceStatus.jsx"></script>
+  <script type="text/babel" src="components/ConnectionStatus.jsx"></script>
+  <script type="text/babel" src="components/StatsCard.jsx"></script>
+  <script type="text/babel" src="components/ServerCard.jsx"></script>
+  <script type="text/babel" src="components/ServerTable.jsx"></script>
+  <script type="text/babel" src="components/StatusChart.jsx"></script>
+  <script type="text/babel" src="components/ServiceManagementPanel.jsx"></script>
+  <script type="text/babel" src="components/ServerRebootGrid.jsx"></script>
+  <script type="text/babel" src="components/LoginScreen.jsx"></script>
+  <script type="text/babel" src="components/Dashboard.jsx"></script>
+  
+  <!-- Main App -->
+  <script type="text/babel">
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(window.Dashboard));
+  </script>
+</body>
+</html>
