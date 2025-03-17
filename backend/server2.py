@@ -6,10 +6,14 @@ import winrm
 import requests
 import secrets
 import os
+import dotenv
+
+# Load environment variables from .env file
+dotenv.load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins='*')
+socketio = SocketIO(app, cors_allowed_origins=os.getenv('CORS_ALLOWED_ORIGINS', '*'))
 
 # Basic Authentication Mechanism
 authorized_tokens = set()
@@ -20,8 +24,12 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
+    # Get admin credentials from environment variables
+    admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'admin')
+
     # Replace with actual user validation logic
-    if username == 'admin' and password == 'admin':
+    if username == admin_username and password == admin_password:
         token = secrets.token_hex(16)
         authorized_tokens.add(token)
         return jsonify({'message': 'Login successful', 'token': token})
@@ -81,7 +89,9 @@ def fetch_live_server_status():
 
 def execute_winrm_command(server_ip, command):
     winrm_port = os.getenv('WINRM_PORT', 5985)
-    session = winrm.Session(f'http://{server_ip}:{winrm_port}/wsman', auth=('username', 'password'))
+    winrm_username = os.getenv('WINRM_USERNAME', 'username')
+    winrm_password = os.getenv('WINRM_PASSWORD', 'password')
+    session = winrm.Session(f'http://{server_ip}:{winrm_port}/wsman', auth=(winrm_username, winrm_password))
     response = session.run_cmd(command)
     return response.status_code, response.std_out.decode(), response.std_err.decode()
 

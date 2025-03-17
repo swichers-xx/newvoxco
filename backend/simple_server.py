@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import dotenv
+import sys
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Load environment variables from .env file
@@ -140,123 +141,9 @@ def token_required(f):
 # Actual server data from the original implementation
 def get_server_location():
     """Generate a random location for a server"""
-    import random
-    locations = ["New York", "London", "Tokyo", "Sydney", "Berlin", "Paris", "Toronto", "Singapore"]
-    return random.choice(locations)
-
-def get_random_uptime():
-    """Generate a random uptime in days"""
-    import random
-    return round(random.uniform(1, 365), 1)
-
-def get_random_cpu_usage():
-    """Generate a random CPU usage percentage"""
-    import random
-    return round(random.uniform(5, 95), 1)
-
-def get_random_memory_usage():
-    """Generate a random memory usage percentage"""
-    import random
-    return round(random.uniform(10, 90), 1)
-
-def get_random_disk_usage():
-    """Generate a random disk usage percentage"""
-    import random
-    return round(random.uniform(20, 95), 1)
-
-def get_mock_servers():
-    """Generate server data with the actual servers from the original implementation"""
-    import random
-    
-    servers = [
-        {"name": "VXSQL1", "ip": "172.16.1.150", "type": "Database Server", "os": "Windows Server 2019"},
-        {"name": "VXDIRSRV", "ip": "172.16.1.151", "type": "Directory Server", "os": "Windows Server 2019"},
-        {"name": "VXOADMIN", "ip": "172.16.1.160", "type": "Admin Server", "os": "Windows Server 2016"},
-        {"name": "VXSERVNO", "ip": "172.16.1.27", "type": "Application Server", "os": "Windows Server 2016"},
-        {"name": "VXCATI1", "ip": "172.16.1.156", "type": "CATI Server", "os": "Windows Server 2019"},
-        {"name": "VXCATI2", "ip": "172.16.1.157", "type": "CATI Server", "os": "Windows Server 2019"},
-        {"name": "VXREPORT", "ip": "172.16.1.153", "type": "Reporting Server", "os": "Windows Server 2016"},
-        {"name": "VXDIAL1", "ip": "172.16.1.161", "type": "Dialer Server", "os": "Windows Server 2016"},
-        {"name": "VXDIAL2", "ip": "172.16.1.162", "type": "Dialer Server", "os": "Windows Server 2016"},
-        {"name": "VXDLR1", "ip": "172.16.1.163", "type": "Dialer Server", "os": "Windows Server 2016"}
-    ]
-    
-    # Define common services for all servers
-    common_services = [
-        {"name": "Voxco.InstallationService.exe", "description": "Installation Service", "status": ""},
-        {"name": "WindowsUpdateService", "description": "Windows Update Service", "status": ""},
-        {"name": "W3SVC", "description": "IIS Web Server", "status": ""}
-    ]
-    
-    # Define specific services for each server type
-    specific_services = {
-        "Database Server": [
-            {"name": "SQL Server", "description": "SQL Database Engine", "status": ""},
-            {"name": "SQLAgent", "description": "SQL Server Agent", "status": ""}
-        ],
-        "Directory Server": [
-            {"name": "VoxcoDirectoryService", "description": "Directory Service", "status": ""},
-            {"name": "ActiveDirectory", "description": "Active Directory", "status": ""}
-        ],
-        "Admin Server": [
-            {"name": "Voxco A4S Task Server", "description": "A4S Task Service", "status": ""},
-            {"name": "Voxco Email Server", "description": "Email Service", "status": ""},
-            {"name": "Voxco Integration Service", "description": "Integration Service", "status": ""},
-            {"name": "Voxco Task Server", "description": "Task Service", "status": ""}
-        ],
-        "Application Server": [
-            {"name": "ServNoServer", "description": "ServNo Service", "status": ""},
-            {"name": "ApplicationPool", "description": "IIS Application Pool", "status": ""}
-        ],
-        "CATI Server": [
-            {"name": "VoxcoBridgeService", "description": "Bridge Service", "status": ""},
-            {"name": "VoxcoCATIService", "description": "CATI Service", "status": ""}
-        ],
-        "Reporting Server": [
-            {"name": "VoxcoReportingService", "description": "Reporting Service", "status": ""},
-            {"name": "SQLReportingServices", "description": "SQL Reporting Services", "status": ""}
-        ],
-        "Dialer Server": [
-            {"name": "ProntoServer", "description": "Pronto Dialer Service", "status": ""},
-            {"name": "DialerManager", "description": "Dialer Management Service", "status": ""}
-        ]
-    }
-    
-    # Status probabilities (80% online, 15% warning, 5% offline)
-    status_weights = {'online': 0.8, 'warning': 0.15, 'offline': 0.05}
-    
-    detailed_servers = []
-    for server in servers:
-        # Get services for this server
-        services = common_services.copy()
-        if server["type"] in specific_services:
-            services.extend(specific_services[server["type"]])
-        
-        # Assign status to each service
-        for service in services:
-            status = random.choices(
-                ['online', 'warning', 'offline'],
-                [status_weights['online'], status_weights['warning'], status_weights['offline']]
-            )[0]
-            service["status"] = status
-        
-        # Add additional server details
-        detailed_server = {
-            "name": server["name"],
-            "ip": server["ip"],
-            "location": get_server_location(),
-            "type": server["type"],
-            "os": server["os"],
-            "uptime": get_random_uptime(),
-            "cpu_usage": get_random_cpu_usage(),
-            "memory_usage": get_random_memory_usage(),
-            "disk_usage": get_random_disk_usage(),
-            "services": services
-        }
-        
-        detailed_servers.append(detailed_server)
-    
-    return detailed_servers
+    # Placeholder for fetching live server data
+    # Implement logic to fetch live data from your data source
+    return []
 
 # Cache for server data
 server_cache = {
@@ -267,15 +154,15 @@ server_cache = {
 @app.route('/api/servers', methods=['GET'])
 @token_required
 def get_servers(current_user):
-    """Get all servers with optional filtering"""
+    """Get all servers with optional filtering using live data"""
     import time
     
     # Refresh cache every 30 seconds
     current_time = time.time()
-    if server_cache['data'] is None or (current_time - server_cache['last_updated']) > 30:
-        server_cache['data'] = get_mock_servers()
-        server_cache['last_updated'] = current_time
-        logger.info("Server data refreshed in cache")
+    # Placeholder for fetching live server data
+    # Implement logic to fetch live data from your data source
+    server_cache['data'] = []  # Replace with live data fetching logic
+    logger.info("Server data refreshed in cache")
     
     servers = server_cache['data']
     
@@ -356,8 +243,13 @@ def get_stats(current_user):
 
 # Start the server
 if __name__ == '__main__':
-    # Get port from environment variable or use default
-    port = int(os.getenv('API_PORT', 5002))
+    # Add parent directory to path to import port_utils
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from port_utils import find_free_port, save_port
+    
+    # Use a dynamic port with preference for 3000-3005
+    port = find_free_port(preferred_range=(3000, 3005))
+    save_port('simple_server', port)
     
     # Log server startup
     logger.info(f"Starting simple server on port {port}")

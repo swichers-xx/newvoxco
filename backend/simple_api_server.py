@@ -7,8 +7,16 @@ import os
 import json
 import time
 import random
+import dotenv
+import sys
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+import subprocess
+import json
+import re
+
+# Load environment variables from .env file
+dotenv.load_dotenv()
 
 # Set up logging
 logging.basicConfig(
@@ -23,12 +31,12 @@ logger = logging.getLogger(__name__)
 
 # Configure Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'voxco_server_dashboard_secret_key'
-app.config['JWT_EXPIRATION_SECONDS'] = 3600  # 1 hour
-app.config['CACHE_EXPIRATION_SECONDS'] = 60  # 1 minute
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'voxco_server_dashboard_secret_key')
+app.config['JWT_EXPIRATION_SECONDS'] = int(os.getenv('JWT_EXPIRATION_SECONDS', 3600))  # 1 hour
+app.config['CACHE_EXPIRATION_SECONDS'] = int(os.getenv('CACHE_EXPIRATION_SECONDS', 60))  # 1 minute
 
 # Configure CORS
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": os.getenv('CORS_ALLOWED_ORIGINS', '*')}}, supports_credentials=True)
 
 # Set response headers for all responses
 @app.after_request
@@ -44,10 +52,14 @@ cache = {
     'last_updated': 0
 }
 
+# Get admin credentials from environment variables
+admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+admin_password = os.getenv('ADMIN_PASSWORD', 'admin')
+
 # In-memory user database
 users = {
-    'admin': {
-        'password': generate_password_hash('admin'),
+    admin_username: {
+        'password': generate_password_hash(admin_password),
         'role': 'admin'
     },
     'user': {
@@ -444,7 +456,7 @@ def reboot_server(current_user):
             
             # Start the reboot process in a background thread
             import threading
-            threading.Thread(target=bring_services_online).start()
+            threading.Thread(target=bring_services_online, daemon=True).start()
             
             return jsonify({'message': f'Server {server_name} is rebooting'})
     
@@ -527,7 +539,284 @@ def get_logs(current_user):
     
     return jsonify(filtered_logs)
 
+@app.route('/api/winrm/config', methods=['GET'])
+@token_required
+def get_winrm_config(current_user):
+    """Get WinRM configuration from .env file"""
+    try:
+        config = {
+            'enabled': os.environ.get('WINRM_ENABLED', 'false').lower() == 'true',
+            'username': os.environ.get('WINRM_USERNAME', ''),
+            'password': '********',  # Don't return actual password
+            'host': os.environ.get('WINRM_HOST', ''),
+            'port': os.environ.get('WINRM_PORT', '5985')
+        }
+        return jsonify(config)
+    except Exception as e:
+        app.logger.error(f"Error getting WinRM config: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/config', methods=['POST'])
+@token_required
+def save_winrm_config(current_user):
+    """Save WinRM configuration to .env file"""
+    try:
+        data = request.json
+        
+        # Update .env file
+        env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+        
+        # Read current .env file
+        env_content = {}
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        env_content[key] = value
+        
+        # Update values
+        env_content['WINRM_ENABLED'] = str(data.get('enabled', False)).lower()
+        env_content['WINRM_USERNAME'] = data.get('username', '')
+        if data.get('password') and data.get('password') != '********':
+            env_content['WINRM_PASSWORD'] = data.get('password', '')
+        env_content['WINRM_HOST'] = data.get('host', '')
+        env_content['WINRM_PORT'] = data.get('port', '5985')
+        
+        # Write back to .env file
+        with open(env_path, 'w') as f:
+            for key, value in env_content.items():
+                f.write(f"{key}={value}\n")
+        
+        # Update current environment
+        os.environ['WINRM_ENABLED'] = str(data.get('enabled', False)).lower()
+        os.environ['WINRM_USERNAME'] = data.get('username', '')
+        if data.get('password') and data.get('password') != '********':
+            os.environ['WINRM_PASSWORD'] = data.get('password', '')
+        os.environ['WINRM_HOST'] = data.get('host', '')
+        os.environ['WINRM_PORT'] = data.get('port', '5985')
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        app.logger.error(f"Error saving WinRM config: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/status', methods=['GET'])
+@token_required
+def get_winrm_status(current_user):
+    """Get WinRM status"""
+    try:
+        enabled = os.environ.get('WINRM_ENABLED', 'false').lower() == 'true'
+        username = os.environ.get('WINRM_USERNAME', '')
+        password = os.environ.get('WINRM_PASSWORD', '')
+        host = os.environ.get('WINRM_HOST', '')
+        port = os.environ.get('WINRM_PORT', '5985')
+        
+        status = {
+            'enabled': enabled,
+            'configured': enabled and username and password and host and port
+        }
+        
+        return jsonify(status)
+    except Exception as e:
+        app.logger.error(f"Error getting WinRM status: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/test', methods=['GET'])
+@token_required
+def test_winrm_connection(current_user):
+    """Test WinRM connection to a server"""
+    try:
+        server = request.args.get('server', os.environ.get('WINRM_HOST', ''))
+        
+        if not server:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Test connection
+        result = winrm.testConnection(server)
+        
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Error testing WinRM connection: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/metrics', methods=['GET'])
+@token_required
+def get_server_metrics_winrm(current_user, server_ip):
+    """Get server metrics using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Get metrics
+        cpu_usage = winrm.getCPUUsage(server_ip)
+        memory_usage = winrm.getMemoryUsage(server_ip)
+        disk_usage = winrm.getDiskUsage(server_ip)
+        uptime = winrm.getUptime(server_ip)
+        server_info = winrm.getServerInfo(server_ip)
+        
+        metrics = {
+            'cpuUsage': cpu_usage,
+            'memoryUsage': memory_usage,
+            'diskUsage': disk_usage,
+            'uptime': uptime,
+            'serverInfo': server_info
+        }
+        
+        return jsonify(metrics)
+    except Exception as e:
+        app.logger.error(f"Error getting server metrics via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/info', methods=['GET'])
+@token_required
+def get_server_info_winrm(current_user, server_ip):
+    """Get server information using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Get server info
+        server_info = winrm.getServerInfo(server_ip)
+        
+        return jsonify(server_info)
+    except Exception as e:
+        app.logger.error(f"Error getting server info via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/services', methods=['GET'])
+@token_required
+def get_services_winrm(current_user, server_ip):
+    """Get all services from a server using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Get services
+        services = winrm.getServices(server_ip)
+        
+        return jsonify(services)
+    except Exception as e:
+        app.logger.error(f"Error getting services via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/service/<service_name>/start', methods=['POST'])
+@token_required
+def start_service_winrm(current_user, server_ip, service_name):
+    """Start a service on a server using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        if not service_name:
+            return jsonify({'error': 'Service name is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Start service
+        result = winrm.startService(server_ip, service_name)
+        
+        return jsonify({'success': result})
+    except Exception as e:
+        app.logger.error(f"Error starting service via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/service/<service_name>/stop', methods=['POST'])
+@token_required
+def stop_service_winrm(current_user, server_ip, service_name):
+    """Stop a service on a server using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        if not service_name:
+            return jsonify({'error': 'Service name is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Stop service
+        result = winrm.stopService(server_ip, service_name)
+        
+        return jsonify({'success': result})
+    except Exception as e:
+        app.logger.error(f"Error stopping service via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/service/<service_name>/restart', methods=['POST'])
+@token_required
+def restart_service_winrm(current_user, server_ip, service_name):
+    """Restart a service on a server using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        if not service_name:
+            return jsonify({'error': 'Service name is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Restart service
+        result = winrm.restartService(server_ip, service_name)
+        
+        return jsonify({'success': result})
+    except Exception as e:
+        app.logger.error(f"Error restarting service via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/winrm/server/<server_ip>/reboot', methods=['POST'])
+@token_required
+def reboot_server_winrm(current_user, server_ip):
+    """Reboot a server using WinRM"""
+    try:
+        if not server_ip:
+            return jsonify({'error': 'Server IP is required'}), 400
+        
+        # Import winrmConnection module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import winrmConnection as winrm
+        
+        # Reboot server
+        result = winrm.rebootServer(server_ip)
+        
+        return jsonify({'success': result})
+    except Exception as e:
+        app.logger.error(f"Error rebooting server via WinRM: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
+    # Add parent directory to path to import port_utils
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from port_utils import find_free_port, save_port
+    
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='Start the Voxco API server')
+    parser.add_argument('--port', type=int, help='Port to run the server on')
+    args = parser.parse_args()
+    
     # Initialize server data
     get_cached_servers()
     
@@ -540,8 +829,14 @@ if __name__ == '__main__':
     import threading
     threading.Thread(target=background_status_updates, daemon=True).start()
     
-    # Get port from environment variable or use default
-    port = int(os.getenv('PORT', 5001))
+    # Use specified port or find a dynamic port
+    if args.port:
+        port = args.port
+    else:
+        # Use a dynamic port with preference for 3000-3005
+        port = find_free_port(preferred_range=(3000, 3005))
+    
+    save_port('simple_api_server', port)
     
     # Log server startup
     logger.info(f"Starting server on port {port}")

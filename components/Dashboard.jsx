@@ -7,6 +7,7 @@ window.Dashboard = function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(window.API.isAuthenticated());
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const [showAdminInterface, setShowAdminInterface] = React.useState(window.location.pathname === '/admin');
   const [stats, setStats] = React.useState({
     total_servers: 0,
     total_services: 0,
@@ -19,6 +20,39 @@ window.Dashboard = function Dashboard() {
     avg_disk_usage: 0
   });
   const [connectionStatus, setConnectionStatus] = React.useState({ connected: false });
+  const [config, setConfig] = React.useState(window.FRONTEND_CONFIG || {});
+  const [winrmStatus, setWinrmStatus] = React.useState({
+    enabled: false,
+    connected: false,
+    lastChecked: null
+  });
+
+  // Check if URL is /admin to show admin interface
+  React.useEffect(() => {
+    console.log("Current pathname:", window.location.pathname);
+    console.log("Is authenticated:", isAuthenticated);
+    
+    if (window.location.pathname === '/admin') {
+      setShowAdminInterface(true);
+      console.log("Setting showAdminInterface to true");
+    }
+  }, [isAuthenticated]);
+
+  // Add event listener for URL changes
+  React.useEffect(() => {
+    const handleUrlChange = () => {
+      console.log("URL changed to:", window.location.pathname);
+      if (window.location.pathname === '/admin') {
+        setShowAdminInterface(true);
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, []);
 
   // Load servers on initial render if authenticated
   React.useEffect(() => {
@@ -63,6 +97,14 @@ window.Dashboard = function Dashboard() {
       // Listen for connection status changes
       window.API.addEventListener('connection-status', handleConnectionStatus);
       
+      // Check WinRM status
+      checkWinRMStatus();
+      
+      // Set up interval to check WinRM status every 5 minutes
+      const winrmStatusInterval = setInterval(() => {
+        checkWinRMStatus();
+      }, 5 * 60 * 1000);
+      
       return () => {
         // Clean up event listeners
         window.API.removeEventListener('auth-change', handleAuthChange);
@@ -70,6 +112,7 @@ window.Dashboard = function Dashboard() {
         window.API.removeEventListener('service-update', handleServiceUpdate);
         window.API.removeEventListener('server-reboot', handleServerReboot);
         window.API.removeEventListener('connection-status', handleConnectionStatus);
+        clearInterval(winrmStatusInterval);
       };
     }
   }, [isAuthenticated, servers]);
@@ -190,11 +233,39 @@ window.Dashboard = function Dashboard() {
     setConnectionStatus(status);
   };
 
+  const checkWinRMStatus = async () => {
+    try {
+      // Check if API is available
+      if (window.API && typeof window.API.getWinRMStatus === 'function') {
+        const status = await window.API.getWinRMStatus();
+        setWinrmStatus({
+          enabled: status?.enabled || false,
+          connected: status?.connected || false,
+          lastChecked: new Date().toISOString()
+        });
+      } else {
+        console.error("API.getWinRMStatus is not available");
+        setWinrmStatus({
+          enabled: false,
+          connected: false,
+          lastChecked: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('Error checking WinRM status:', error);
+      setWinrmStatus({
+        enabled: false,
+        connected: false,
+        lastChecked: new Date().toISOString(),
+        error: error.message
+      });
+    }
+  };
+
   // Fetch servers from API
   const fetchServers = async () => {
     try {
       setIsLoading(true);
-      setError(null);
       
       const data = await window.API.getServers();
       setServers(data);
@@ -231,6 +302,30 @@ window.Dashboard = function Dashboard() {
     }
   };
 
+  // Handle server updates from admin interface
+  const handleUpdateServers = (updatedServers) => {
+    setServers(updatedServers);
+    
+    // Count alerts
+    let alerts = 0;
+    updatedServers.forEach(server => {
+      server.services.forEach(service => {
+        if (service.status === 'warning' || service.status === 'offline') {
+          alerts++;
+        }
+      });
+    });
+    setActiveAlerts(alerts);
+    
+    setRefreshTime(new Date());
+  };
+
+  // Handle config updates from admin interface
+  const handleUpdateConfig = (updatedConfig) => {
+    setConfig(updatedConfig);
+    window.FRONTEND_CONFIG = updatedConfig;
+  };
+
   // Login is now handled in the LoginScreen component
 
   // Handle logout
@@ -262,14 +357,30 @@ window.Dashboard = function Dashboard() {
 
   // We've moved the login form to a separate component: LoginScreen.jsx
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={(result) => setIsAuthenticated(true)} />;
-  }
-
   // Main dashboard UI
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+      {/* Admin Interface Modal */}
+      {(showAdminInterface || window.location.pathname === '/admin') && (
+        <AdminInterface 
+          onClose={() => {
+            setShowAdminInterface(false);
+            if (window.location.pathname === '/admin') {
+              window.history.pushState({}, '', '/');
+            }
+          }} 
+          servers={servers}
+          onUpdateServers={handleUpdateServers}
+          config={config}
+          onUpdateConfig={handleUpdateConfig}
+        />
+      )}
+      
+      {/* Login Screen */}
+      {!isAuthenticated && !window.location.pathname.includes('/admin') && (
+        <LoginScreen onLogin={(result) => setIsAuthenticated(true)} />
+      )}
+      
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -310,12 +421,20 @@ window.Dashboard = function Dashboard() {
             </button>
             
             {isAuthenticated && (
-              <button
-                onClick={handleLogout}
-                className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-              >
-                Logout
-              </button>
+              <>
+                <button
+                  onClick={() => setShowAdminInterface(true)}
+                  className="bg-primary text-white px-3 py-1 rounded hover:bg-blue-600 text-sm"
+                >
+                  Admin
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                >
+                  Logout
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -364,9 +483,9 @@ window.Dashboard = function Dashboard() {
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="flex flex-col items-center">
-              <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
               <p className="text-gray-600 dark:text-gray-400">Loading server data...</p>
             </div>

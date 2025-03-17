@@ -1,0 +1,59 @@
+[
+  {
+    "name": "VXSQL1",
+    "ip": "172.16.1.150",
+    "services": [
+      { "name": "SQL Server", "status": "online" },
+      { "name": "SQL Server Agent", "status": "online" },
+      { "name": "SQL Browser", "status": "online" }
+    ],
+    "specs": {
+      "cpu": "Intel Xeon E5-2690 v4",
+      "cores": 14,
+      "ram": "64GB DDR4",
+      "storage": "4TB SSD RAID-10",
+      "os": "Windows Server 2019"
+    },
+    "uptime": "99.98%",
+    "lastReboot": "2023-09-15 02:00:00"
+  },
+  {
+    "name": "VXDIRSRV",
+    "ip": "172.16.1.151",
+    "services": [
+      { "name": "VoxcoDirectoryService", "status": "online" },
+      { "name": "Voxco.InstallationService.exe", "status": "online" },
+      { "name": "Active Directory Services", "status": "online" },
+      { "name": "DNS Server", "status": "online" }
+    ],
+    "specs": {
+      "cpu": "Intel Xeon E5-2680 v3",
+      "cores": 12,
+      "ram": "32GB DDR4",
+      "storage": "2TB SSD RAID-1",
+      "os": "Windows Server 2016"
+    },
+    "uptime": "99.95%",
+    "lastReboot": "2023-10-02 01:30:00"
+  },
+  {
+    "name": "VXOADMIN",
+    "ip": "172.16.1.160",
+    "services": [
+      { "name": "Voxco A4S Task Server", "status": "online" },
+      { "name": "Voxco Email Server", "status": "online" },
+      { "name": "Voxco Integration Service", "status": "online" },
+      { "name": "Voxco Task Server", "status": "online" },
+      { "name": "Voxco.InstallationService.exe", "status": "online" }
+    ],
+    "specs": {
+      "cpu": "Intel Xeon E5-2690 v4",
+      "cores": 14,
+      "ram": "64GB DDR4",
+      "storage": "2TB SSD RAID-5",
+      "os": "Windows Server 2019"
+    },
+    "uptime": "99.90%",
+    "lastReboot": "2023-10-08 03:15:00"
+  }
+]

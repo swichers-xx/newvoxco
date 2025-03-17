@@ -1,9 +1,10 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" href="data:image/x-icon;," type="image/x-icon">
-  <title>Voxco Server Monitoring Dashboard</title>
+  <link rel="icon" href="data:image/x-icon;," type="image/x-icon">
+  <title>Voxco Server Monitoring - Admin</title>
   
   <!-- React 18 Dependencies -->
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -89,12 +90,50 @@
   <script type="text/babel" src="components/ServerRebootGrid.jsx"></script>
   <script type="text/babel" src="components/LoginScreen.jsx"></script>
   <script type="text/babel" src="components/AdminInterface.jsx"></script>
-  <script type="text/babel" src="components/Dashboard.jsx"></script>
   
-  <!-- Main App -->
+  <!-- Admin App -->
   <script type="text/babel">
+    // Simple Admin App Component
+    function AdminApp() {
+      const [servers, setServers] = React.useState(window.serversData || []);
+      const [config, setConfig] = React.useState(window.FRONTEND_CONFIG || {});
+      const [isAuthenticated, setIsAuthenticated] = React.useState(window.API.isAuthenticated());
+      
+      // Handle login
+      const handleLogin = (result) => {
+        setIsAuthenticated(true);
+      };
+      
+      // Handle server updates
+      const handleUpdateServers = (updatedServers) => {
+        setServers(updatedServers);
+      };
+      
+      // Handle config updates
+      const handleUpdateConfig = (updatedConfig) => {
+        setConfig(updatedConfig);
+      };
+      
+      // Show login screen if not authenticated
+      if (!isAuthenticated) {
+        return <window.LoginScreen onLogin={handleLogin} />;
+      }
+      
+      // Return the admin interface directly
+      return (
+        <window.AdminInterface
+          onClose={() => window.location.href = '/'}
+          servers={servers}
+          onUpdateServers={handleUpdateServers}
+          config={config}
+          onUpdateConfig={handleUpdateConfig}
+        />
+      );
+    }
+    
+    // Render the admin app
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(window.Dashboard));
+    root.render(React.createElement(AdminApp));
   </script>
 </body>
 </html>

@@ -1,0 +1,52 @@
+# Environment variables
+
+# Logs
+logs/
+*.log
+
+# Process IDs
+pids/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Distribution packages
+dist/
+
+# Generated frontend configuration
+
+
+# Docker
+.dockerignore
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

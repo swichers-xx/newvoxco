@@ -13,6 +13,13 @@ import random
 import dotenv
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.serving import WSGIRequestHandler
+import sys
+from datetime import datetime, timedelta
+
+# Add parent directory to path to import port_utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from port_utils import find_free_port, save_port
 
 # Load environment variables from .env file
 dotenv.load_dotenv()
@@ -38,7 +45,6 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max size
 app.config['MAX_COOKIE_SIZE'] = 16 * 1024  # 16KB max cookie size
 
 # Configure request handling for larger headers
-from werkzeug.serving import WSGIRequestHandler
 WSGIRequestHandler.protocol_version = "HTTP/1.1"  # Use HTTP/1.1 for better header handling
 # Set a larger buffer size for headers
 if hasattr(WSGIRequestHandler, 'header_size_limit'):
@@ -141,7 +147,7 @@ def login():
             token = jwt.encode({
                 'username': username,
                 'role': users[username]['role'],
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=app.config['JWT_EXPIRATION_SECONDS'])
+                'exp': datetime.utcnow() + timedelta(seconds=app.config['JWT_EXPIRATION_SECONDS'])
             }, app.config['SECRET_KEY'], algorithm="HS256")
             
             logger.info(f"User {username} logged in successfully")
@@ -308,7 +314,7 @@ def get_cached_servers():
         cache['last_updated'] = current_time
         
         # Broadcast updates via WebSocket
-        socketio.emit('server-update', {'servers': cache['servers'], 'timestamp': datetime.datetime.now().isoformat()})
+        socketio.emit('server-update', {'servers': cache['servers'], 'timestamp': datetime.utcnow().isoformat()})
     
     return cache['servers']
 
@@ -388,7 +394,7 @@ def start_service(current_user):
                         'server': server_name,
                         'service': service_name,
                         'status': 'online',
-                        'timestamp': datetime.datetime.now().isoformat(),
+                        'timestamp': datetime.utcnow().isoformat(),
                         'user': current_user
                     })
                     
@@ -433,7 +439,7 @@ def stop_service(current_user):
                         'server': server_name,
                         'service': service_name,
                         'status': 'offline',
-                        'timestamp': datetime.datetime.now().isoformat(),
+                        'timestamp': datetime.utcnow().isoformat(),
                         'user': current_user
                     })
                     
@@ -475,7 +481,7 @@ def restart_service(current_user):
                         'server': server_name,
                         'service': service_name,
                         'status': 'online',
-                        'timestamp': datetime.datetime.now().isoformat(),
+                        'timestamp': datetime.utcnow().isoformat(),
                         'user': current_user
                     })
                     
@@ -512,7 +518,7 @@ def reboot_server(current_user):
             # Broadcast update
             socketio.emit('server-reboot', {
                 'server': server_name,
-                'timestamp': datetime.datetime.now().isoformat(),
+                'timestamp': datetime.utcnow().isoformat(),
                 'user': current_user
             })
             
@@ -528,7 +534,7 @@ def reboot_server(current_user):
                 # Broadcast update
                 socketio.emit('server-update', {
                     'servers': [server],
-                    'timestamp': datetime.datetime.now().isoformat()
+                    'timestamp': datetime.utcnow().isoformat()
                 })
                 
                 logger.info(f"Server {server_name} completed reboot")
@@ -615,7 +621,7 @@ def get_stats(current_user):
         'avg_cpu_usage': round(avg_cpu, 2),
         'avg_memory_usage': round(avg_memory, 2),
         'avg_disk_usage': round(avg_disk, 2),
-        'timestamp': datetime.datetime.now().isoformat()
+        'timestamp': datetime.utcnow().isoformat()
     })
 
 # WebSocket event handlers
@@ -642,7 +648,6 @@ if __name__ == '__main__':
     # Initialize server data
     get_cached_servers()
     
-    # Start background task to periodically update server status
     def background_status_updates():
         while True:
             time.sleep(30)  # Update every 30 seconds
@@ -651,8 +656,9 @@ if __name__ == '__main__':
     import threading
     threading.Thread(target=background_status_updates, daemon=True).start()
     
-    # Get port from environment variable or use default
-    port = int(os.getenv('PORT', 5000))
+    # Use a dynamic port with preference for 3000-3005
+    port = find_free_port(preferred_range=(3000, 3005))
+    save_port('server_improved', port)
     
     # Configure basic server options compatible with older versions
     server_options = {

@@ -16181,3 +16181,4 @@
 2025-02-28 07:48:03,046 - __main__ - INFO - Service status change: VXDIAL2 - DialerManager changed from warning to online
 2025-02-28 07:48:03,047 - __main__ - INFO - Service status change: VXDLR1 - W3SVC changed from offline to online
 2025-02-28 07:48:03,047 - __main__ - INFO - Service status change: VXDLR1 - DialerManager changed from warning to online
+2025-03-07 13:40:44,908 - __main__ - INFO - Starting simple server on port 5002
